@@ -1,0 +1,1 @@
+CREATE TABLE table2 (id INT, name CHAR(8));

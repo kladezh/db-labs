@@ -1,0 +1,1 @@
+INSERT INTO table2 VALUES (10, 'sdfaf'), (20, 'fdasb'), (30, 'dsfsf');

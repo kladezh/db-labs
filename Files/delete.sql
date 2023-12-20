@@ -1,0 +1,1 @@
+DELETE FROM table2 WHERE id = 10;
