@@ -10,25 +10,33 @@ SELECT firstname, post, salary, RANK() OVER (PARTITION BY post ORDER BY salary D
 2)
 CREATE TABLE tran_table (id SERIAL, name TEXT);
 INSERT INTO tran_table (name) VALUES ('SLAVAN');
-
-a)
-BEGIN ISOLATION LEVEL REPEATABLE READ;
-BEGIN;
-COMMIT;
-ROLLBACK;
-
 SELECT * FROM tran_table;
 DELETE FROM tran_table;
 
 
-б)
--- заблочить все операции
-LOCK TABLE tran_table IN ACCESS EXCLUSIVE MODE;
+a)
+# Войти в транзакцию
+BEGIN;
 
--- заблочить всё, кроме чтения
+# завершить транзакцию и сохранить изменения
+COMMIT;
+# завершить транзацкию и отменить изменения
+ROLLBACK;
+
+# войти в транзакцию и сделать снимок базы
+# (то есть таблицы запомнятся на до транзакцию и не будут изменяться извне)
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+
+
+б)
+# заблочить все операции для таблици
+LOCK TABLE tran_table IN ACCESS EXCLUSIVE MODE;
+# заблочить всё, кроме чтения для таблицы
 LOCK TABLE tran_table IN SHARE MODE;
 
+# поставить точку сохранения
 SAVEPOINT sp1;
+# вернуться к точке сохранения
 ROLLBACK TO SAVEPOINT sp1;
 
 
@@ -42,7 +50,7 @@ SELECT *
 FROM worker
 WHERE salary > 5000;
 
---
+##
 
 WITH avg_sal AS (
     SELECT post, AVG(salary) AS average_salary
@@ -60,7 +68,7 @@ SELECT
 FROM employ AS e
 JOIN avg_sal AS a ON a.post = e.post;
 
--- 
+##
 
 CREATE TABLE geo (
     id int not null primary key, 
@@ -96,7 +104,7 @@ WITH RECURSIVE r AS (
 
 SELECT * FROM r;
 
---
+##
 
 WITH RECURSIVE t(i) AS (
     SELECT 1 AS i
@@ -107,7 +115,7 @@ WITH RECURSIVE t(i) AS (
 )
 SELECT sum(i) FROM t;
 
---
+##
 
 4)
 \df
