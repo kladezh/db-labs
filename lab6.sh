@@ -1,3 +1,44 @@
+# Типы данных в PostGIS:
+
+# Геометрические типы данных:
+# - Geometry (объект): представляет собой абстрактный геометрический объект, который может быть точкой, линией или полигоном в пространстве
+# - Point (точка): Определена своими координатами x, y.
+# - LineString (линия): Упорядоченный набор точек, соединенных прямыми линиями.
+# - Polygon (полигон): Замкнутая линия, представляющая собой упорядоченный набор точек, образующих замкнутую область.
+
+# Географические типы данных:
+# - Geography (география): Тип для представления данных в сферической географической системе координат, например, широты и долготы. Поддерживает глобальные объекты и расчет расстояний на поверхности Земли.
+
+
+# Операции в PostGIS:
+
+# Создание объектов:
+# - ST_GeomFromText: Создание геометрии из текстового представления.
+# - ST_Point, ST_LineString, ST_Polygon: Создание точек, линий и полигонов.
+# - ST_StartPoint, ST_EndPoint: Возвращают начальную и конечную точку (Point) линии (LineString)
+
+# Пространственные отношения:
+# - ST_Intersects: Проверка пересечения объектов.
+# - ST_Contains: Проверка, содержит ли объект A в себе объект B
+# - ST_Within: Проверяет, вложен ли объект A полностью в объект B
+# - ST_DWithin: Прверяет, находится ли объект A в пределах указанного расстояния от объекта B
+# - ST_Distance: Расчет расстояния между объектами.
+
+# Анализ:
+# - ST_Area, ST_Length: Расчет площади и длины объектов соответственно.
+# - ST_Azimuth: Расчет азимута - угла между направлением на север и линии, соединяющей две точки
+# - ST_Centroid, ST_PointOnSurface: Нахождение центроида и точки на поверхности объекта.
+
+# Трансформации:
+# - ST_Transform: Преобразование геометрии из одной системы координат в другую.
+# - ST_Buffer: Создание буферной зоны вокруг объекта.
+
+#######################################################################
+
+
+# создаем базу для лабы (в ней работаем)
+CREATE DATABASE mapdb;
+
 # добавить  постгис в базу
 CREATE EXTENSION postgis; 
 # проверить   
@@ -10,14 +51,14 @@ SELECT postgis_version();
 CREATE TABLE cities (
     city_id SERIAL PRIMARY KEY,
     city_name VARCHAR(50),
-    city_location GEOMETRY(Point, 4326) # GEOMETRY тип для координат города
+    city_location GEOMETRY(Point, 4326)
 );
 
 # Создание таблицы для дорог
 CREATE TABLE roads (
     road_id SERIAL PRIMARY KEY,
     road_name VARCHAR(50),
-    road_path GEOMETRY(LineString, 4326), # GEOMETRY тип для пути дороги
+    road_path GEOMETRY(LineString, 4326),
     city_id INTEGER REFERENCES cities(city_id) 
 );
 
@@ -26,7 +67,7 @@ CREATE TABLE landmarks (
     landmark_id SERIAL PRIMARY KEY,
     landmark_name VARCHAR(50),
     landmark_location GEOMETRY(Point, 4326),
-    city_id INTEGER REFERENCES cities(city_id)  # GEOMETRY тип для координат достопримечательностей
+    city_id INTEGER REFERENCES cities(city_id)
 );
 
 # Создание таблицы для зон торговых центров
@@ -34,7 +75,7 @@ CREATE TABLE shopping_zones (
     zone_id SERIAL PRIMARY KEY,
     zone_name VARCHAR(50),
     zone_area GEOMETRY(Polygon, 4326),
-    city_id INTEGER REFERENCES cities(city_id) # GEOMETRY тип для прямоугольных зон торговых центров
+    city_id INTEGER REFERENCES cities(city_id)
 );
 
 # Заполнение таблиц данными
@@ -92,10 +133,8 @@ WITH parallel_roads AS (
         r2.road_name AS road_name2, 
         ST_Length(r1.road_path) AS length1, 
         ST_Length(r2.road_path) AS length2, 
-        ST_Azimuth(ST_StartPoint(r1.road_path), 
-        ST_EndPoint(r1.road_path)) AS azimuth1, 
-        ST_Azimuth(ST_StartPoint(r2.road_path), 
-        ST_EndPoint(r2.road_path)) AS azimuth2 
+        ST_Azimuth(ST_StartPoint(r1.road_path), ST_EndPoint(r1.road_path)) AS azimuth1, 
+        ST_Azimuth(ST_StartPoint(r2.road_path), ST_EndPoint(r2.road_path)) AS azimuth2 
     FROM roads r1 
     JOIN roads r2 ON r1.road_name < r2.road_name 
     WHERE ST_Azimuth(ST_StartPoint(r1.road_path), ST_EndPoint(r1.road_path)) = 
@@ -125,7 +164,7 @@ SELECT
     road_name1,
     road_name2, 
     length1, 
-    length2,
+    length2
 FROM parallel_roads;
 
 
@@ -150,7 +189,7 @@ FROM shopping_zones sz
 WHERE EXISTS (
   SELECT 1
   FROM target_road tr
-  WHERE ST_DWithin(sz.zone_area, tr.road_path, 100.0) # - это расстояние  
+  WHERE ST_DWithin(sz.zone_area, tr.road_path, 100.0) 
 )
 ORDER BY zone_area DESC
 LIMIT 1;
@@ -169,7 +208,6 @@ DECLARE
   object2_location GEOMETRY;
   distance FLOAT;
 BEGIN
-  # Получаем местоположение первого объекта
   CASE object1_type
     WHEN 'city' THEN
       SELECT city_location INTO object1_location FROM cities WHERE city_id = object1_id;
@@ -183,7 +221,6 @@ BEGIN
       RAISE EXCEPTION 'Неверный тип объекта: %', object1_type;
   END CASE;
 
-  # Получаем местоположение второго объекта
   CASE object2_type
     WHEN 'city' THEN
       SELECT city_location INTO object2_location FROM cities WHERE city_id = object2_id;
@@ -197,7 +234,6 @@ BEGIN
       RAISE EXCEPTION 'Неверный тип объекта: %', object2_type;
   END CASE;
 
-  # Рассчитываем расстояние между объектами
   distance := ST_Distance(object1_location, object2_location);
 
   RETURN distance;
