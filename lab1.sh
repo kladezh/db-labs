@@ -42,7 +42,7 @@ SELECT :SERVER_VERSION_NUM >= 100000 AS pgsql10 \gset
 
 
 5) НЕ РАБОТАЕТ
-pg_config --sysconfdir
+pg_config #sysconfdir
 [.psqlrc | psqlrc.conf]
 
 \set top5 'SELECT tablename, pg_total_relation_size(schemaname||''.''|| tablename) AS bytes FROM pg_tables ORDER BY bytes DESC LIMIT 5;'
@@ -60,7 +60,7 @@ pg_config --sysconfdir
 
 
 9)
--- вывести роли
+# вывести роли
 \du
 
 SELECT * FROM information_schema.role_table_grants;
@@ -86,20 +86,20 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO "user";
 
 \c roledb user
 CREATE TABLE t1 (id INT, name CHAR(8));
--- выведет: отказано в доступе
+# выведет: отказано в доступе
 
 \c roledb admin
 CREATE TABLE t1 (id INT, name CHAR(8));
--- успешно выполнится
+# успешно выполнится
 
 \c roledb user
 SELECT * FROM t1;
--- разрешено
+# разрешено
 
 INSERT INTO t1 (id, name) VALUES (1, 'fjadj');
--- заперещено
+# заперещено
 
--- удалить роли
+# удалить роли
 REASSIGN OWNED BY "admin" TO postgres;
 DROP OWNED BY "admin";
 DROP ROLE "admin";
@@ -121,10 +121,10 @@ CREATE TYPE post AS ENUM('worker', 'teacher');
 
 SELECT * FROM pg_enum;
 
--- Изменить значение
+# Изменить значение
 ALTER TYPE post RENAME VALUE 'teacher' TO 'teacher1';
 
--- Удалить значение из типа
+# Удалить значение из типа
 UPDATE employ SET post=DEFAULT WHERE post='teacher1';\
 DELETE FROM pg_enum WHERE enumlabel='teacher1';
 
@@ -185,20 +185,21 @@ UPDATE employ
 SET birthdate = 19900926
 WHERE id = 1;
 
--- Поменять дату INT на DATE
+# Поменять дату INT на DATE
 ALTER TABLE employ
 ALTER COLUMN birthdate TYPE DATE
 USING TO_DATE(birthdate::TEXT, 'YYYYMMDD');
 
--- Поменять дату DATE на INT
+# Поменять дату DATE на INT
 ALTER TABLE employ
 ALTER COLUMN birthdate TYPE INTEGER
 USING TO_CHAR(birthdate, 'YYYYMMDD')::INTEGER;
 
----- обновить auto-increment поля id
+# обновить auto-increment поля id
 ALTER SEQUENCE employ_id_seq RESTART WITH 1;
 UPDATE employ SET "id"=nextval('employ_id_seq');
-----
+
+###############################################
 
 INSERT INTO employ (firstname, lastname, workdays, post, salary, vacation_startdate, vacation_duration, birthdate)
 VALUES

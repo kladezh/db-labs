@@ -12,8 +12,7 @@ SELECT date( generate_series(now(), now() + '1week','1day') );
 # строкой состоящей из символа «1» длинной от 1 до 25 символов:  в третьем столбце
 SELECT 
     generate_series(1,10) AS key, 
-    (random() * 100)::numeric(4,2), repeat ('1', (random() * 25)::integer) 
-ORDER BY random();
+    (random() * 100)::numeric(4,2), repeat ('1', (random() * 25)::integer);
 
 # генерация 3 чисел в промежутке от 22 до 43
 SELECT (random() * 21 + 22)::int AS size FROM generate_series(1,3);
@@ -34,12 +33,13 @@ SELECT random()::int::bool FROM generate_series(1, 3);
 SELECT count(*) FROM employ;
 
 # подсчитывает примерно 1% из общего количества строк
-SELECT count(*) FROM employ WHERE random() < 0.01;
+SELECT round((count(*) * 0.01)::numeric, 4) AS one_percent_count
+FROM employ;
 
 
 3)
 
-# создает случайные даты, добавляя к начальной дате (в Unix-формате 1388534400)
+# создает случайную дату, добавляя к начальной дате (в Unix-формате 1388534400)
 # случайное количество секунд (от 0 до 63071999 секунд).
 SELECT to_timestamp(1388534400 + random() * 63071999);
 
@@ -70,9 +70,20 @@ SELECT
 5)
 
 # создает таблицу "товары" и заполняет её случайными значениями
-CREATE TABLE products AS
+CREATE TABLE IF NOT EXISTS products (
+    id SERIAL PRIMARY KEY,
+    name CHAR(10),
+    price NUMERIC(10, 2),
+    size INT,
+    color VARCHAR(7),
+    updated_at TIMESTAMP,
+    built DATE,
+    is_available BOOLEAN
+);
+
+INSERT INTO products (id, name, price, size, color, updated_at, built, is_available)
     SELECT
-        generate_series(1, 100000) AS id,
+        generate_series(1, 1000) AS id,
         md5(random()::text)::char(10) AS name,
         (random()*1000)::numeric(10, 2) AS price,
         (random()*21+22)::int AS size,
@@ -80,22 +91,26 @@ CREATE TABLE products AS
         (now() - interval '1 day' * round(random()*100))::timestamp(0) AS updated_at,
         (now() - interval '2 year' + interval '1 year' * random())::date AS built,
         random()::int::bool AS is_available
-    FROM generate_series(1, 100000);
+    FROM generate_series(1, 1000);
 
 
 6)
 
 # создает столбец n, который содержит случайные значения типа boolean (истина или ложь)
 # для каждой строки в диапазоне от 1 до 1000
+WITH numbers AS (
+    SELECT round(random()::numeric, 2) AS num
+    FROM generate_series(1,1000)
+)
 SELECT 
-    CASE WHEN random() <= 0.03 THEN false ELSE true END AS n 
-FROM generate_series(1,1000);
-
+    num, 
+    CASE WHEN num <= 0.03 THEN false ELSE true END AS is_greater_then_0_03
+FROM numbers;
 
 7)
 
 # создаем таблицу на сто тысяч рандомных записей
-CREATE TABLE customer AS
+CREATE TABLE IF NOT EXISTS customer AS
 SELECT
     generate_series(1, 100000) AS id,
     floor(random() * (999999 - 100000 + 1) + 100000)::text AS zipcode;
@@ -109,7 +124,7 @@ VACUUM ANALYZE customer;
 
 # добавление индекса на столбец для оптимизации запросов
 CREATE INDEX idx_zipcode ON customer(zipcode);
-EXPLAIN SELECT id FROM customer WHERE zipcode='789990';\
+EXPLAIN SELECT id FROM customer WHERE zipcode='789990';
 
 EXPLAIN SELECT * FROM customer ORDER BY sort_column DESC LIMIT 3;
 
@@ -122,7 +137,17 @@ SELECT now() - query_start AS running_for, query FROM pg_stat_activity ORDER BY 
 
 # выбирает все блокировки, которые не были предоставлены (то есть ожидают разблокировки).
 # Результат содержит информацию о блокировках в базе данных.
-SELECT * FROM pg_locks WHERE NOT granted;
+SELECT 
+    locktype,
+    database,
+    relation,
+    virtualtransaction,
+    pid,
+    mode,
+    granted,
+    fastpath,
+    waitstart
+FROM pg_locks WHERE NOT granted;
 
 # Этот запрос возвращает информацию о блокировках и ожидающих запросах в базе данных.
 # Он показывает, какие запросы блокируются и блокируют другие запросы, 
