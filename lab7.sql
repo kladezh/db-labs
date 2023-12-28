@@ -25,7 +25,7 @@ WITH regex_pattern AS (
 )
 SELECT
     id AS string_id,
-    (regexp_match(string, email_regex))[1] AS email
+    regexp_matches(string, email_regex, 'g') AS email
 FROM strings, regex_pattern
 WHERE string ~ email_regex;
 
@@ -100,11 +100,12 @@ GROUP BY
 
 INSERT INTO strings (string) VALUES
     ('74951234567'),
-    ('79234567890');
+    ('89234567890'),
+    ('9287764590');
 
 UPDATE strings
-SET string = REGEXP_REPLACE(string, '(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})', '+\1(\2)\3-\4-\5')
-WHERE string ~ '^\d{11}$';
+SET string = REGEXP_REPLACE(string, '^(7|8)?(\d{3})(\d{3})(\d{2})(\d{2})', '+7(\2)\3-\4-\5')
+WHERE string ~ '^\d{10,11}$';
 
 
 -- 8) вывести код оператора номера телефона в отделнюю колонку
