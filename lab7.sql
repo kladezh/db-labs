@@ -5,15 +5,10 @@ CREATE TABLE strings (
 
 
 INSERT INTO strings (string) VALUES
-    ('Мама123'),
-    ('Мыло456a'),
-    ('Р789аму'),
     ('example@email.com'),
     ('Слово: Значение'),
-    ('Текстовый_файл.txt'),
+    ('text_file.txt'),
     ('Иванов Иван Иванович'),
-    ('+79234567890'),
-    ('+7(495)123-45-67'),
     ('123456 Город улица Дом 123');
 
 
@@ -25,7 +20,15 @@ SELECT string FROM strings WHERE string ~ '[0-9]';
 INSERT INTO strings (string) VALUES 
     ('hbh1b4adbfarra@yandex.ruaj jabgjb');
 
-SELECT string FROM strings WHERE string ~ E'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,4}';
+WITH regex_pattern AS (
+  SELECT E'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,4}'::text AS email_regex
+)
+SELECT
+    id AS string_id,
+    (regexp_match(string, email_regex))[1] AS email
+FROM strings, regex_pattern
+WHERE string ~ email_regex;
+
 
 ^[A-Za-z0-9._%+-]+:  строка должна начинаться с одного 
     или более символов, которые могут быть буквами в верхнем и нижнем регистре, 
@@ -49,12 +52,14 @@ SELECT string FROM strings WHERE string ~ '^[a-zA-z]:\S.*';
 
 -- 4) найти файлы с расширением .txt
 
-INSERT INTO strings (string) VALUES
-    ('fsdf.txt'),
-    ('sdfsf.bat');
-
-
-SELECT string FROM strings WHERE string ~ '\.txt$';
+WITH regex_pattern AS (
+    SELECT '[\w,\s_]+\.txt'::text AS txt_regex
+)
+SELECT 
+    id AS string_id,
+    (regexp_match(string, txt_regex))[1] AS txt_file
+FROM strings, regex_pattern
+WHERE string ~ txt_regex;
 
 
 -- 5) разделить поле ФИО на имя, фамилию, отчество
@@ -70,18 +75,32 @@ INSERT INTO people (full_name) VALUES
     ('Сидоров Сидор Сидорович');
 
 
+
 SELECT
-  full_name AS "Полное имя",
-  SPLIT_PART(full_name, ' ', 1) AS "Фамилия",
-  SPLIT_PART(full_name, ' ', 2) AS "Имя",
-  SPLIT_PART(full_name, ' ', 3) AS "Отчество"
-FROM people;
+  people.full_name,
+  (array_agg(fullname_array))[1] AS "Фамилия",
+  (array_agg(fullname_array))[2] AS "Имя",
+  (array_agg(fullname_array))[3] AS "Отчество"
+FROM
+  people,
+  LATERAL unnest(string_to_array(people.full_name, ' ')) AS fullname_array
+WHERE
+  fullname_array IS NOT NULL AND fullname_array <> ''
+GROUP BY
+  people.full_name;
+
+
+-- string_to_array(full_name, ' ') - разделяет строку на массив по пробелам (любой послед-ти прообелов)
+-- unnest() - все элементы массива превращает в строки таблицы (rows)
+
+
 
 
 -- 6) преобразовать номер мобильного телефона к виду '+7(495)123-45-67'
 
 INSERT INTO strings (string) VALUES
-    ('74951234567');
+    ('74951234567'),
+    ('79234567890');
 
 UPDATE strings
 SET string = REGEXP_REPLACE(string, '(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})', '+\1(\2)\3-\4-\5')
