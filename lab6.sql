@@ -248,7 +248,9 @@ FROM parallel_roads;
 
 4)
 
-SELECT landmark_name
+SELECT 
+  landmark_name,
+   ST_Distance(landmark_location, ST_GeomFromText('POINT(52.1234 33.5678)', 4326)::GEOMETRY) AS distance
 FROM landmarks
 WHERE ST_DWithin(landmark_location, ST_GeomFromText('POINT(52.1234 33.5678)', 4326), 10);
 
@@ -256,13 +258,13 @@ WHERE ST_DWithin(landmark_location, ST_GeomFromText('POINT(52.1234 33.5678)', 43
 5)
 
 WITH target_road AS (
-  SELECT road_name, road_path
+  SELECT road_path
   FROM roads
   WHERE road_name = 'Road1'  
 )
 SELECT 
     sz.zone_name, 
-    ST_Area(sz.zone_area) AS zone_area
+    ST_Area((sz.zone_area)::geography) AS zone_area
 FROM shopping_zones sz
 WHERE EXISTS (
   SELECT 1
@@ -276,29 +278,14 @@ LIMIT 1;
 6)
 
 CREATE OR REPLACE FUNCTION calculate_distance(
-  object1_id INT,
-  object1_type VARCHAR(50),
+  point1 VARCHAR(50),
   object2_id INT,
   object2_type VARCHAR(50)
 ) RETURNS FLOAT AS $$
 DECLARE
-  object1_location GEOMETRY;
   object2_location GEOMETRY;
   distance FLOAT;
 BEGIN
-  CASE object1_type
-    WHEN 'city' THEN
-      SELECT city_location INTO object1_location FROM cities WHERE city_id = object1_id;
-    WHEN 'road' THEN
-      SELECT road_path INTO object1_location FROM roads WHERE road_id = object1_id;
-    WHEN 'landmark' THEN
-      SELECT landmark_location INTO object1_location FROM landmarks WHERE landmark_id = object1_id;
-    WHEN 'shopping_zone' THEN
-      SELECT zone_area INTO object1_location FROM shopping_zones WHERE zone_id = object1_id;
-    ELSE
-      RAISE EXCEPTION 'Неверный тип объекта: %', object1_type;
-  END CASE;
-
   CASE object2_type
     WHEN 'city' THEN
       SELECT city_location INTO object2_location FROM cities WHERE city_id = object2_id;
@@ -312,11 +299,19 @@ BEGIN
       RAISE EXCEPTION 'Неверный тип объекта: %', object2_type;
   END CASE;
 
-  distance := ST_Distance(object1_location, object2_location);
+  distance := ST_Distance(ST_GeomFromText(point1, 4326), object2_location);
 
   RETURN distance;
 END;
 $$ LANGUAGE plpgsql;
+
+
+select calculate_distance('POINT(52.1234 33.5678)', 1, 'city');
+
+
+SELECT ST_Distance(ST_GeomFromText('POINT(52.1234 33.5678)', 4326), landmark_location)
+FROM landmarks
+WHERE landmark_id = 2;
 
 
 SELECT calculate_distance(1, 'city', 2, 'landmark');

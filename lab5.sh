@@ -1,4 +1,7 @@
 
+#  	SELECT random()*(b-a)+a;
+# b - верхняя граница, a - нижняя граница
+
 1)
 
 # генерация чисел в указанном промежутке
@@ -68,6 +71,24 @@ SELECT
 
 
 5)
+#######
+CREATE TABLE tran_table (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(32),
+    salary INTEGER,
+    post VARCHAR(32),
+    employ_date DATE
+);
+
+INSERT INTO tran_table (name, salary, post, employ_date)
+    SELECT
+        regexp_replace(md5(random()::text)::varchar(32), '\d', '', 'g') AS name,
+        (random() * (9999 - 1000) + 1000)::integer AS salary,
+        (array['admin', 'accountant', 'cleaner', 'intern'])[ceil(random()*4)] AS post,
+        (now() - interval '5 years' * random())::date AS employ_date
+    FROM generate_series(1, 10000);
+######
+
 
 # создает таблицу "товары" и заполняет её случайными значениями
 CREATE TABLE IF NOT EXISTS products (
@@ -116,24 +137,24 @@ SELECT
     floor(random() * (999999 - 100000 + 1) + 100000)::text AS zipcode;
 
 # просмотор план выполнения запроса
-EXPLAIN SELECT id FROM customer WHERE zipcode='789990'; 
+EXPLAIN ANALYZE SELECT * FROM tran_table WHERE salary='6674'; 
+# добавление индекса на столбец для оптимизации запросов
+CREATE INDEX idx_salary ON tran_table(salary);
 
 # используется для управления хранением данных и обновления статистики. 
 # Она может быть полезна для оптимизации выполнения запросов.
 VACUUM ANALYZE customer; 
 
-# добавление индекса на столбец для оптимизации запросов
-CREATE INDEX idx_zipcode ON customer(zipcode);
 EXPLAIN SELECT id FROM customer WHERE zipcode='789990';
 
-EXPLAIN SELECT * FROM customer ORDER BY sort_column DESC LIMIT 3;
+EXPLAIN SELECT * FROM customer ORDER BY zipcode DESC LIMIT 3;
 
 8)
 
 # возвращает информацию о текущих активных запросах и времени их выполнения. 
 # Результат будет содержать столбцы running_for (время выполнения) и query (SQL-запрос). 
 # Он покажет пять запросов, которые выполняются дольше всего.
-SELECT now() - query_start AS running_for, query FROM pg_stat_activity ORDER BY 1 DESC LIMIT 5;
+SELECT now() - query_start AS running_for, query FROM pg_stat_activity ORDER BY 1 DESC;
 
 # выбирает все блокировки, которые не были предоставлены (то есть ожидают разблокировки).
 # Результат содержит информацию о блокировках в базе данных.

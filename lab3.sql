@@ -1,3 +1,68 @@
+\df
+SELECT prosrc FROM pg_proc WHERE proname = ''
+
+
+
+-- 1
+
+-- Создание главной таблицы
+CREATE TABLE UserVisits (
+    UserID SERIAL PRIMARY KEY,
+    UserName VARCHAR(50),
+    VisitDate TIMESTAMP,
+    PageVisited VARCHAR(100)
+);
+
+-- Создание дочерней таблицы
+CREATE TABLE MonthlyUserActions (
+    ActionID SERIAL PRIMARY KEY,
+    ActionDescription VARCHAR(255)
+) INHERITS (UserVisits);
+
+INSERT INTO UserVisits (UserName, VisitDate, PageVisited)
+VALUES 
+    ('JohnDoe', '2023-01-01 10:00:00', 'Homepage'),
+    ('JaneDoe', '2023-01-02 12:30:00', 'ProductPage'),
+    ('BobSmith', '2023-12-03 15:45:00', 'ContactPage');
+
+-- Функция для триггера
+CREATE OR REPLACE FUNCTION PopulateMonthlyUserActions()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF EXTRACT(MONTH FROM NEW.VisitDate) = 12 THEN
+        -- Вставка записи в дочернюю таблицу
+        INSERT INTO MonthlyUserActions (ActionDescription)
+        VALUES ('Visited page: ' || NEW.PageVisited);
+    ELSE
+        -- Вывод ошибки, если месяц не декабрь
+        RAISE EXCEPTION 'Data can only be inserted in December.';
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Создание триггера
+CREATE TRIGGER MonthlyUserActionsTrigger
+BEFORE INSERT ON UserVisits
+FOR EACH ROW
+EXECUTE FUNCTION PopulateMonthlyUserActions();
+
+-- Проверка триггера (добавляем запись в таблицу UserVisits)
+INSERT INTO UserVisits (UserName, VisitDate, PageVisited)
+VALUES ('JohnDoe', CURRENT_TIMESTAMP, 'Homepage');
+
+-- Проверим содержимое дочерней таблицы MonthlyUserActions
+SELECT * FROM MonthlyUserActions;
+
+
+
+
+
+
+
+
+
 -- 1
 
 -- таблица посещения пользователем страниц
@@ -10,11 +75,7 @@ CREATE TABLE UserVisits (
 
 -- таблица действия пользователя
 CREATE TABLE MonthlyUserActions (
-    ActionID SERIAL PRIMARY KEY,
-    UserID INT,
-    ActionDate TIMESTAMP,
-    ActionDescription VARCHAR(255),
-    FOREIGN KEY (UserID) REFERENCES UserVisits(UserID)
+    VisitDescription VARCHAR(255)
 );
 
 -- функция для триггера
@@ -27,15 +88,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Триггер будет автоматически добавлять записи в таблицу MonthlyUserActions при вставке новых данных в таблицу UserVisits
+-- Триггер
 CREATE TRIGGER MonthlyUserActionsTrigger
 AFTER INSERT ON UserVisits
 FOR EACH ROW
 EXECUTE FUNCTION PopulateMonthlyUserActions();
 
+-- Триггер будет автоматически добавлять записи 
+-- в таблицу MonthlyUserActions 
+-- при вставке новых данных в таблицу UserVisits
+
 -- Проверка триггера (добавляем запись в таблицу UserVisits)
 INSERT INTO UserVisits (UserName, VisitDate, PageVisited)
-VALUES ('JohnDoe', CURRENT_TIMESTAMP, 'Homepage');
+VALUES ('Alex100', CURRENT_TIMESTAMP, 'Youtube');
 
 -- Проверим содержимое дочерней таблицы MonthlyUserActions, чтобы проверить, сработал ли триггер
 SELECT * FROM MonthlyUserActions;
@@ -50,6 +115,7 @@ CREATE TABLE Employees (
     Salary DECIMAL(10, 2)
 );
 
+-- Функция для триггера
 CREATE OR REPLACE FUNCTION CheckEmployeeInsert()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -57,7 +123,7 @@ BEGIN
         RAISE EXCEPTION 'Salary cannot be negative';
     END IF;
 
-    IF NEW.FirstName = '' THEN
+    IF NEW.FirstName = '' OR NEW.FirstName IS NULL THEN
         RAISE EXCEPTION 'First name cannot be empty';
     END IF;
 
@@ -65,10 +131,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Триггер
 CREATE TRIGGER BeforeInsertEmployee
 BEFORE INSERT ON Employees
 FOR EACH ROW
 EXECUTE FUNCTION CheckEmployeeInsert();
+
+-- Триггер проверяет при вставке в таблицу Employees
+-- Зарпалата не отрицательная
+-- Имя не пустое
+
 
 -- Попытка вставить запись с отрицательной зарплатой
 INSERT INTO Employees (FirstName, LastName, Salary)
@@ -105,6 +177,8 @@ CREATE TABLE reorder_stock (
     quantity_to_order INT -- разница между (10 - quantity)
 );
 
+
+-- Функция для триггера
 CREATE OR REPLACE PROCEDURE DoReorder()
 AS $$
 DECLARE
@@ -114,13 +188,11 @@ BEGIN
     INSERT INTO reorder_stock (product_id, product_name, quantity_to_order)
     SELECT product_id, product_name, (reorder_threshold - quantity) AS quantity_to_order
     FROM stock
-    WHERE quantity < reorder_threshold;
-
-    -- Можно добавить дополнительные действия, например, уведомление или изменение статуса
-
+    WHERE quantity < reorder_threshold; -- Если кол-во товара меньше макс. величины
 END;
 $$ LANGUAGE plpgsql;
 
+-- Вызвать функцию триггера
 CALL DoReorder();
 
 -- Посмотрим содержимое таблицы stock
@@ -134,22 +206,35 @@ SELECT * FROM reorder_stock;
 
 -- 4
 
+-- функция для триггера
 CREATE OR REPLACE FUNCTION UpdateReorderStock()
 RETURNS TRIGGER AS $$
 DECLARE
     reorder_threshold INT := 10; -- фиксированная велчина кол-ва товаров
+    product_exists BOOLEAN;
+    new_quantity INT;
 BEGIN
-    UPDATE reorder_stock
-    SET quantity_to_order = GREATEST(0, reorder_threshold - NEW.quantity)
-    WHERE product_id = NEW.product_id;
+    IF NEW.quantity < reorder_threshold THEN
+        new_quantity := GREATEST(0, reorder_threshold - NEW.quantity);
 
+        SELECT EXISTS (SELECT 1 FROM reorder_stock WHERE product_id = NEW.product_id) INTO product_exists;
+        IF product_exists THEN
+            UPDATE reorder_stock
+            SET quantity_to_order = new_quantity
+            WHERE product_id = NEW.product_id;
+        ELSE
+            INSERT INTO reorder_stock (product_id, product_name, quantity_to_order)
+            VALUES (NEW.product_id, NEW.product_name, new_quantity);
+        END IF;
+    END IF;
+    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Привяжем триггер к таблице stock после выполнения UPDATE
-CREATE TRIGGER AfterUpdateStock
-AFTER UPDATE ON stock
+CREATE OR REPLACE TRIGGER AfterUpdateStock
+AFTER UPDATE OR INSERT ON stock
 FOR EACH ROW
 EXECUTE FUNCTION UpdateReorderStock();
 
@@ -251,18 +336,28 @@ BEGIN
     ELSIF TG_OP = 'DELETE' THEN
         INSERT INTO employee_audit (action_type, employee_id, first_name, last_name, salary)
         VALUES ('DELETE', OLD.EmployeeID, OLD.FirstName, OLD.LastName, OLD.Salary);
+    ELSIF TG_OP = 'TRUNCATE' THEN
+        INSERT INTO employee_audit (action_type, employee_id, first_name, last_name, salary)
+        VALUES ('TRUNCATE', NULL, NULL, NULL, NULL);
     END IF;
     
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE TRIGGER employee_audit_truncate_trigger
+AFTER TRUNCATE 
+ON Employees
+FOR EACH STATEMENT
+EXECUTE FUNCTION EmployeeAuditFunction();
+
 -- Создаем триггер аудита для таблицы сотрудников
-CREATE TRIGGER employee_audit_trigger
+CREATE OR REPLACE TRIGGER employee_audit_trigger
 AFTER INSERT OR UPDATE OR DELETE
 ON Employees
 FOR EACH ROW
 EXECUTE FUNCTION EmployeeAuditFunction();
+
 
 -- Проверка триггера
 -- Вставка
@@ -276,9 +371,6 @@ DELETE FROM Employees WHERE EmployeeID = 4;
 
 -- Просмотр записей в таблице аудита
 SELECT * FROM employee_audit;
-
-
--- 7
 
 -- Создаем функцию-обертку
 CREATE OR REPLACE FUNCTION superuser_copy()
